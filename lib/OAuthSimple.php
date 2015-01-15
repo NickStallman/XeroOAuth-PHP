@@ -406,6 +406,9 @@ class OAuthSimple {
 
     function _readFile($filePath) {
 
+        if (substr($filePath, 0, 5) == '-----')
+		return $filePath;
+
            $fp = fopen($filePath,"r");
 
         $file_contents = fread($fp,8192);

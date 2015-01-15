@@ -608,10 +608,12 @@ class XeroOAuth {
 		
 		if ($this->config ['application_type'] == 'Partner' || $this->config ['application_type'] == 'Private') {
 			
-			if (! file_exists ( $this->config ['rsa_public_key'] ))
-				$testOutput ['rsa_cert_error'] = "Can't read the self-signed SSL cert. Private and Partner API applications require a self-signed X509 cert http://developer.xero.com/documentation/advanced-docs/public-private-keypair/ \n";
-			if (file_exists ( $this->config ['rsa_public_key'] )) {
-				$data = openssl_x509_parse ( file_get_contents ( $this->config ['rsa_public_key'] ) );
+			$public_key_plaintext = (substr($this->config ['rsa_public_key'], 0, 5) == '-----');
+			$public_key_file = file_exists ( $this->config ['rsa_public_key'] );
+			if ( $public_key_file || $public_key_plaintext ) {
+				if (!$public_key_plaintext)
+					$this->config ['rsa_public_key'] = file_get_contents ( $this->config ['rsa_public_key'] );
+				$data = openssl_x509_parse ( $this->config ['rsa_public_key'] );
 				$validFrom = date ( 'Y-m-d H:i:s', $data ['validFrom_time_t'] );
 				if (time () < $data ['validFrom_time_t']) {
 					$testOutput ['ssl_cert_error'] = "Application cert not yet valid - cert valid from " . $validFrom . "\n";
@@ -620,15 +622,22 @@ class XeroOAuth {
 				if (time () > $data ['validTo_time_t']) {
 					$testOutput ['ssl_cert_error'] = "Application cert cert expired - cert valid to " . $validFrom . "\n";
 				}
+			} else {
+				$testOutput ['rsa_cert_error'] = "Can't read the self-signed SSL cert. Private and Partner API applications require a self-signed X509 cert http://developer.xero.com/documentation/advanced-docs/public-private-keypair/ \n";
 			}
-			if (! file_exists ( $this->config ['rsa_private_key'] ))
-				$testOutput ['rsa_cert_error'] = "Can't read the self-signed cert key. Check your rsa_private_key config variable. Private and Partner API applications require a self-signed X509 cert http://developer.xero.com/documentation/advanced-docs/public-private-keypair/ \n";
-			if (file_exists ( $this->config ['rsa_private_key'] )) {
+
+			$private_key_plaintext = (substr($this->config ['rsa_private_key'], 0, 5) == '-----');
+			$private_key_file = file_exists ( $this->config ['rsa_private_key'] );
+
+			if ($private_key_file || $private_key_plaintext) {
 				$cert_content = file_get_contents ( $this->config ['rsa_public_key'] );
-				$priv_key_content = file_get_contents ( $this->config ['rsa_private_key'] );
-				if (! openssl_x509_check_private_key ( $cert_content, $priv_key_content ))
+				if (!$private_key_plaintext)
+					$this->config ['rsa_private_key'] = file_get_contents ( $this->config ['rsa_private_key'] );
+				if (! openssl_x509_check_private_key ( $this->config ['rsa_public_key'], $this->config ['rsa_private_key'] ))
 					$testOutput ['rsa_cert_error'] = "Application certificate and key do not match \n";
 				;
+			} else {
+				$testOutput ['rsa_cert_error'] = "Can't read the self-signed cert key. Check your rsa_private_key config variable. Private and Partner API applications require a self-signed X509 cert http://developer.xero.com/documentation/advanced-docs/public-private-keypair/ \n";
 			}
 		}
 		
